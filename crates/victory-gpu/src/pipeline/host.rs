@@ -1227,15 +1227,17 @@ mod tests {
         }
         // The software adapter (WARP, the CI's) reports depth bounds support
         // but passes every fragment, so what this checks is a hardware card's.
-        // SAFETY: plain DXGI adapter queries on a live device.
         use windows::Win32::Graphics::Dxgi::{
             CreateDXGIFactory2, DXGI_ADAPTER_FLAG_SOFTWARE, DXGI_CREATE_FACTORY_FLAGS, IDXGIAdapter1, IDXGIFactory4,
         };
+        // SAFETY: plain DXGI adapter queries on a live device.
         let software = unsafe {
             CreateDXGIFactory2::<IDXGIFactory4>(DXGI_CREATE_FACTORY_FLAGS(0))
                 .and_then(|factory| factory.EnumAdapterByLuid::<IDXGIAdapter1>(host.device.GetAdapterLuid()))
                 .and_then(|adapter| adapter.GetDesc1())
-                .is_ok_and(|desc| desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE.0 as u32 != 0)
+                // Microsoft's vendor id: WARP, also as the Basic Render Driver a
+                // machine without a card gets, which does not always say software.
+                .is_ok_and(|desc| desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE.0 as u32 != 0 || desc.VendorId == 0x1414)
         };
         if software {
             eprintln!("software adapter: depth bounds are not applied there; skipped");
